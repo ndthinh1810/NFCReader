@@ -23,18 +23,51 @@ extension NFCTypeNameFormat: CustomStringConvertible {
     }
 }
 
-class PayloadsTableViewController: UITableViewController, NFCNDEFReaderSessionDelegate {
+class PayloadsTableViewController: UITableViewController, NFCTagReaderSessionDelegate {
+    func tagReaderSessionDidBecomeActive(_ session: NFCTagReaderSession) {
+        print("start")
+    }
+    
+    func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
+        print(error)
+    }
+    
+    func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
+        let tag = tags.first!
+        session.connect(to: tag, completionHandler: { (error: Error?) in
+            if nil != error {
+                session.alertMessage = "Unable to connect to tag."
+                session.invalidate()
+                return
+            }
+           
+            if case let .iso7816(sTag) = tag {
+                print(sTag.identifier)
+                print(sTag.initialSelectedAID)
+                if let data = String(data: sTag.identifier, encoding: .ascii) {
+                    print(data)
+                }
+                
+            }
+        })
+    }
+    
+    
 
     // MARK: - Properties
 
     let reuseIdentifier = "reuseIdentifier"
     var message: NFCNDEFMessage = .init(records: [])
-    var session: NFCNDEFReaderSession?
+    var session: NFCTagReaderSession?
 
     // MARK: - Table View Data Source
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return self.message.records.count
+    }
+    
+    override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        return 500
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -44,7 +77,7 @@ class PayloadsTableViewController: UITableViewController, NFCNDEFReaderSessionDe
         }
 
         textLabel.text = "Invalid data"
-
+        textLabel.numberOfLines = 0
         let payload = message.records[indexPath.row]
         switch payload.typeNameFormat {
         case .nfcWellKnown:
@@ -74,7 +107,7 @@ class PayloadsTableViewController: UITableViewController, NFCNDEFReaderSessionDe
 
     /// - Tag: beginWriting
     @IBAction func beginWrite(_ sender: Any) {
-        session = NFCNDEFReaderSession(delegate: self, queue: nil, invalidateAfterFirstRead: false)
+        session = NFCTagReaderSession(pollingOption: [.iso14443, .iso15693], delegate: self, queue: nil)
         session?.alertMessage = "Hold your iPhone near an NDEF tag to write the message."
         session?.begin()
     }
